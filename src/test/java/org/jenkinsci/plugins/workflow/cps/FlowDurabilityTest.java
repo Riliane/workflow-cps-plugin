@@ -125,7 +125,7 @@ public class FlowDurabilityTest {
     }
 
     @Before
-    private void tryRecreateRJR(){
+    public void tryRecreateRJR(){
         if (rjrNeedsRecreation){
             story = new RestartableJenkinsRule();
             rjrNeedsRecreation = false;
