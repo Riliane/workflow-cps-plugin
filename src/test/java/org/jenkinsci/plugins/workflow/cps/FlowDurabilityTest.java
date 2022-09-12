@@ -61,6 +61,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.logging.Logger;
 
 /**
  * Tests implementations designed to verify handling of the flow durability levels and persistence of pipeline state.
@@ -84,7 +85,9 @@ public class FlowDurabilityTest {
     @Rule
     public TimedRepeatRule repeater = new TimedRepeatRule();
 
-    private boolean rjrNeedsRecreation = false;
+    private Logger log = Logger.getLogger(FlowDurabilityTest.class.getName());
+
+    private boolean rsjrNeedsRecreation = false;
 
     // Used in Race-condition/persistence fuzzing where we need to run repeatedly
     static class TimedRepeatRule implements TestRule {
@@ -125,10 +128,11 @@ public class FlowDurabilityTest {
     }
 
     @Before
-    public void tryRecreateRJR(){
-        if (rjrNeedsRecreation){
+    public void tryRecreateRsJR(){
+        if (rsjrNeedsRecreation){
+            log.warning("Trying to recreate RestartableJenkinsRule to recover from a file write failure.");
             story = new RestartableJenkinsRule();
-            rjrNeedsRecreation = false;
+            rsjrNeedsRecreation = false;
         }
     }
 
@@ -591,7 +595,7 @@ public class FlowDurabilityTest {
             public void evaluate() throws Throwable {
                 WorkflowRun run = story.j.jenkins.getItemByFullName("durableAgainstClean", WorkflowJob.class).getLastBuild();
                 if (run == null) {
-                    rjrNeedsRecreation = true;
+                    rsjrNeedsRecreation = true;
                     return;
                 } //there is a small chance due to non atomic write that build.xml will be empty and the run won't load at all
                 verifyFailedCleanly(story.j.jenkins, run);
@@ -626,7 +630,7 @@ public class FlowDurabilityTest {
             public void evaluate() throws Throwable {
                 WorkflowRun run = story.j.jenkins.getItemByFullName("durableAgainstClean", WorkflowJob.class).getLastBuild();
                 if (run == null) {
-                    rjrNeedsRecreation = true;
+                    rsjrNeedsRecreation = true;
                     return;
                 } //there is a small chance due to non atomic write that build.xml will be empty and the run won't load at all
                 // this is suboptimal, as a dirty shutdown will make it fail regardless of the storage corruption
