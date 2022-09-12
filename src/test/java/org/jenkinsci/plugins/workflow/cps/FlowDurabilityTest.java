@@ -37,11 +37,7 @@ import org.jenkinsci.plugins.workflow.support.storage.FlowNodeStorage;
 import org.jenkinsci.plugins.workflow.support.storage.BulkFlowNodeStorage;
 import org.jenkinsci.plugins.workflow.support.storage.SimpleXStreamFlowNodeStorage;
 import org.jenkinsci.plugins.workflow.test.steps.SemaphoreStep;
-import org.junit.Assert;
-import org.junit.ClassRule;
-import org.junit.Ignore;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.*;
 import org.junit.rules.TestRule;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
@@ -65,7 +61,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import org.junit.Assume;
 
 /**
  * Tests implementations designed to verify handling of the flow durability levels and persistence of pipeline state.
@@ -88,6 +83,8 @@ public class FlowDurabilityTest {
 
     @Rule
     public TimedRepeatRule repeater = new TimedRepeatRule();
+
+    private boolean rjrNeedsRecreation = false;
 
     // Used in Race-condition/persistence fuzzing where we need to run repeatedly
     static class TimedRepeatRule implements TestRule {
@@ -124,6 +121,14 @@ public class FlowDurabilityTest {
             } else {
                 return new RepeatedStatement(statement, rep.repeatMillis());
             }
+        }
+    }
+
+    @Before
+    private void tryRecreateRJR(){
+        if (rjrNeedsRecreation){
+            story = new RestartableJenkinsRule();
+            rjrNeedsRecreation = false;
         }
     }
 
@@ -585,7 +590,10 @@ public class FlowDurabilityTest {
             @Override
             public void evaluate() throws Throwable {
                 WorkflowRun run = story.j.jenkins.getItemByFullName("durableAgainstClean", WorkflowJob.class).getLastBuild();
-                if (run == null) { return; } //there is a small chance due to non atomic write that build.xml will be empty and the run won't load at all
+                if (run == null) {
+                    rjrNeedsRecreation = true;
+                    return;
+                } //there is a small chance due to non atomic write that build.xml will be empty and the run won't load at all
                 verifyFailedCleanly(story.j.jenkins, run);
                 story.j.assertLogContains(logStart[0], run);
             }
@@ -617,7 +625,12 @@ public class FlowDurabilityTest {
             @Override
             public void evaluate() throws Throwable {
                 WorkflowRun run = story.j.jenkins.getItemByFullName("durableAgainstClean", WorkflowJob.class).getLastBuild();
-                if (run == null) { return; } //there is a small chance due to non atomic write that build.xml will be empty and the run won't load at all
+                if (run == null) {
+                    rjrNeedsRecreation = true;
+                    return;
+                } //there is a small chance due to non atomic write that build.xml will be empty and the run won't load at all
+                // this is suboptimal, as a dirty shutdown will make it fail regardless of the storage corruption
+                // but we can't edit the file between steps while Jenkins is down to use a clean shutdown
                 verifyFailedCleanly(story.j.jenkins, run);
                 story.j.assertLogContains(logStart[0], run);
             }
